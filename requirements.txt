@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pytest==8.3.5
+pydantic-settings==2.9.1
+httpx==0.28.1
+langchain==0.3.25
+langchain-community==0.3.24
+langchain-ollama==0.3.3
+python-dotenv==1.1.0
+zhipuai==2.1.5.20250421
+dashscope==1.23.3
+sentence-transformers
+rapidocr_onnxruntime
+python-multipart

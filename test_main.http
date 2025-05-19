@@ -1,0 +1,11 @@
+# Test your FastAPI endpoints
+
+POST http://127.0.0.1:8000/api/generate
+Accept: application/json
+
+{
+  "prompt": "你是谁？",
+  "service_name": "tongyi",
+  "model_name": "qwen-plus"
+}
+
