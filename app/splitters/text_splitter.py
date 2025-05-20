@@ -3,7 +3,7 @@ import json
 import numpy as np
 from typing import List, Optional, Any, Dict, Type
 
-from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.output_parsers import PydanticOutputParser, JsonOutputKeyToolsParser
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
@@ -12,7 +12,9 @@ from app.core.exceptions import BizException
 from app.llm.tongyiLLM import TongyiAILLM
 from langchain.schema import AIMessage
 
-from app.utils.ocr_util import load_jpg_file, load_jpg_file_list
+from app.utils.clean_llm_output import clean_llm_output_robust, extract_json_block
+from app.utils.document_process import LegalDocumentExtractor
+from app.utils.ocr_util import load_jpg_file_list
 
 
 class SemanticTextSplitter:
@@ -55,7 +57,7 @@ class KeywordExtractor:
     def __init__(self, llm, model_path: Optional[str] = None,
                  similarity_threshold: Optional[float] = None):
         self.llm = llm
-        if model_path:
+        if model_path:  # 如果提供了模型路径，使用自定义的 SemanticTextSplitter
             self.splitter = SemanticTextSplitter(model_path=model_path,
                                                  similarity_threshold=similarity_threshold or 0.65)
 
@@ -103,23 +105,121 @@ class KeywordExtractor:
         # 设置解析器（自动将输出映射为指定模型）
         parser = PydanticOutputParser(pydantic_object=model_cls)
 
-        prompt = PromptTemplate(
-            template="从下列文本中提取结构化信息:\n{input}\n{format_instructions}",
-            input_variables=["input"],
-            partial_variables={"format_instructions": parser.get_format_instructions()},
+        # 构建 prompt
+        # prompt = PromptTemplate(
+        #     template="你是一名专业的法律文书信息提取助手:"
+        #              "从提供的文本中，**准确、完整地提取结构化信息**:\n\n"
+        #              "文本：\n{input}\n\n"
+        #              "输出符合要求的JSON对象:{format_instructions}。",
+        #     input_variables=["input"],
+        #     partial_variables={"format_instructions": parser.get_format_instructions()},
+        # )
+        extractor = LegalDocumentExtractor()
+        prompt = extractor.build_enhanced_prompt(
+            model_cls=model_cls,
+            parser=parser,
         )
+        # 查看字段描述
+        print(prompt.partial_variables["field_descriptions"])
 
         # 构建 chain
-        chain = prompt | self.llm | parser
+        chain = prompt | self.llm
 
         for i, chunk in enumerate(chunks):
             try:
-                instance: BaseModel = chain.invoke({"input": chunk})
-                for k, v in instance.model_dump().items():
+                response = chain.invoke({"input": chunk})
+
+                # 统一取文本内容
+                if isinstance(response, str):
+                    text_content = response
+                elif hasattr(response, "content"):
+                    text_content = response.content
+                else:
+                    # 兜底，转换成字符串
+                    text_content = str(response)
+
+                if "<think>" in text_content:
+                    text_content = clean_llm_output_robust(text_content)
+
+                text = extract_json_block(text_content)
+                # 使用安全的模型验证器解析 JSON 或字典
+                parsed = self.safe_model_validate(model_cls, text)
+
+                # 合并结果
+                for k, v in parsed.model_dump().items():
                     if k not in merged_result or merged_result[k] in [None, "", 0]:
                         merged_result[k] = v
             except Exception as e:
                 raise BizException(message=f"[段落 {i}] 提取失败: {e}")
+
+        return merged_result
+
+    @staticmethod
+    def safe_model_validate(model_cls: Type[BaseModel], data: Any) -> BaseModel:
+        """安全地将字符串或字典转换为模型实例"""
+        if isinstance(data, str):
+            try:
+                data_dict = json.loads(data)  # 先转字典
+                return model_cls.model_validate(data_dict)  # 再转模型实例
+            except json.JSONDecodeError as e:
+                raise ValueError(f"JSON 解析失败: {e}\n内容: {data}")
+        if isinstance(data, model_cls):
+            return data
+        elif isinstance(data, dict):
+            return model_cls.model_validate(data, strict=False)
+        else:
+            raise TypeError(f"无法识别的数据类型: {type(data)}")
+
+    def extract_from_text_by_model_bak(
+            self,
+            model_cls: Type[BaseModel],
+            text: str,
+    ) -> Dict[str, Any]:
+
+        chunks = self.splitter.split(text)
+        merged_result: Dict[str, Any] = {}
+        debug_info: List[str] = []
+
+        # 将目标模型转换为 JSON schema 字段说明
+        fields_description = ", ".join(model_cls.model_fields.keys())
+
+        prompt = PromptTemplate(
+            template=(
+                "请从下列文本中提取以下字段的结构化信息：{fields}。\n\n"
+                "文本：\n{input}\n\n"
+                "请以JSON对象格式输出，禁止输出数组或其他结构。"
+            ),
+            input_variables=["input"],
+            partial_variables={"fields": fields_description},
+        )
+
+        # 使用更宽容的 JSON 解析器
+        parser = JsonOutputKeyToolsParser(key_name="")  # 输出完整 JSON，无需从某 key 中取值
+        chain = prompt | self.llm | parser
+
+        for i, chunk in enumerate(chunks):
+            try:
+                result: dict = chain.invoke({"input": chunk})
+                for k, v in result.items():
+                    if v in [None, "", 0]:
+                        continue
+                    if isinstance(v, list):
+                        merged_result.setdefault(k, [])
+                        merged_result[k].extend([item for item in v if item not in merged_result[k]])
+                    elif isinstance(v, dict):
+                        merged_result.setdefault(k, {})
+                        merged_result[k].update({kk: vv for kk, vv in v.items() if vv})
+                    else:
+                        if k not in merged_result or merged_result[k] in [None, "", 0]:
+                            merged_result[k] = v
+            except Exception as e:
+                debug_info.append(f"[段落 {i}] 提取失败: {e}\n内容: {chunk[:100]}...")
+
+        if debug_info:
+            raise BizException(
+                message="部分段落提取失败，请检查模型结构或输出格式",
+                data={"errors": debug_info}
+            )
 
         return merged_result
 

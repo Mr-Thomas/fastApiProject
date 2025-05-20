@@ -12,3 +12,5 @@ dashscope==1.23.3
 sentence-transformers
 rapidocr_onnxruntime
 python-multipart
+pymupdf
+python-docx

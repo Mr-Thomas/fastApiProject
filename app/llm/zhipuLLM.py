@@ -10,8 +10,10 @@ from langchain.schema import (
 )
 from app.core.config import settings
 from app.core.exceptions import BizException
+from app.services.llm_registry import register_llm
 
 
+@register_llm("zhipuai")
 class ZhipuAILLM(BaseChatModel):
     model_name: str = Field(default="glm-4-plus", description="ZhipuAI 模型名称")
     temperature: float = Field(default=0.75, description="生成温度")

@@ -27,5 +27,5 @@ class LLMServiceFactory:
         """
         service_class = cls._services.get(service_name)
         if not service_class:
-            raise ValueError(f"Unsupported model: {service_name}")
+            raise ValueError(f"Unsupported service: {service_name}")
         return service_class(**kwargs)

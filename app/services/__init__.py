@@ -1,4 +1,4 @@
-from .llm_factory import LLMServiceFactory
+from .llm_service_factory import LLMServiceFactory
 from .ollama_service import OllamaService
 from .tongyi_service import TongyiAiService
 from .zhipuai_service import ZhipuAiService

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.llm import llm_controller
+from app.api.llm import llm_controller, file_controller
 from app.core.config import settings
 from app.core.exception_handler import (
     biz_exception_handler,
@@ -22,3 +22,4 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 
 # 包含路由
 app.include_router(llm_controller.router, prefix="/api")
+app.include_router(file_controller.router, prefix="/api")

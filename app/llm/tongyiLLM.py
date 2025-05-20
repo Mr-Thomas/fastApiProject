@@ -1,6 +1,5 @@
 from http import HTTPStatus
 from typing import List, Optional, Any, Mapping
-from dashscope.aigc.generation import GenerationResponse
 from langchain.schema import (
     AIMessage,
     BaseMessage,
@@ -13,19 +12,21 @@ from pydantic import Field
 from app.core.config import settings
 
 from app.core.exceptions import BizException
+from app.services.llm_registry import register_llm
 
 
+@register_llm("tongyi")
 class TongyiAILLM(BaseChatModel):
     api_key: Optional[str] = None
-    model: str = Field("qwen-plus", description="Model name")
+    model_name: str = Field("qwen-plus", description="Model name")
     temperature: float = Field(0.75, description="Temperature for sampling")
 
     def __init__(self,
                  api_key: Optional[str] = None,
-                 model: Optional[str] = None,
+                 model_name: Optional[str] = None,
                  **kwargs):
         super().__init__(**kwargs)
-        self.model = model or "qwen-plus"
+        self.model_name = model_name or "qwen-plus"
         # 提取获取 API key 的逻辑到单独方法
         self.api_key = self._get_api_key(api_key)
 
@@ -48,7 +49,7 @@ class TongyiAILLM(BaseChatModel):
 
     @property
     def _identifying_params(self) -> Mapping[str, Any]:
-        return {"model": self.model, "temperature": self.temperature}
+        return {"model_name": self.model_name, "temperature": self.temperature}
 
     def _generate(
             self,
@@ -58,7 +59,7 @@ class TongyiAILLM(BaseChatModel):
     ) -> ChatResult:
         payload = {
             "api_key": self.api_key,
-            "model": self.model,
+            "model": self.model_name,
             "messages": self._convert_messages(messages),
             "temperature": self.temperature,
             **kwargs,
@@ -84,7 +85,7 @@ class TongyiAILLM(BaseChatModel):
                 raise BizException(code=response.status_code, message=response.message)
             content = response.output.text
 
-        generation = ChatGeneration(message=AIMessage(content=content), generation_info={"model": self.model})
+        generation = ChatGeneration(message=AIMessage(content=content), generation_info={"model": self.model_name})
         return ChatResult(generations=[generation])
 
     def _convert_messages(self, messages: List[BaseMessage]) -> List[dict]:
