@@ -9,7 +9,7 @@ class ZhipuAiService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> str:
         try:
-            llm = ZhipuAILLM(model_name=model_name)
+            llm = ZhipuAILLM(model_name=model_name, **kwargs)
             messages = [HumanMessage(content=prompt)]
             result = llm.invoke(messages)
             return result.content

@@ -4,6 +4,7 @@ import numpy as np
 from typing import List, Optional, Any, Dict, Type
 
 from langchain_core.output_parsers import PydanticOutputParser, JsonOutputKeyToolsParser
+from langchain.output_parsers.retry import RetryWithErrorOutputParser
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
@@ -102,31 +103,38 @@ class KeywordExtractor:
         chunks = self.splitter.split(text)
         merged_result: Dict[str, Any] = {}
 
-        # 设置解析器（自动将输出映射为指定模型）
-        parser = PydanticOutputParser(pydantic_object=model_cls)
+        # 初始化输出解析器
+        base_parser = PydanticOutputParser(pydantic_object=model_cls)
 
         # 构建 prompt
         # prompt = PromptTemplate(
-        #     template="你是一名专业的法律文书信息提取助手:"
-        #              "从提供的文本中，**准确、完整地提取结构化信息**:\n\n"
+        #     template="你是一个法律裁判文书助手，擅长提取各种要素信息,没有的可以不提取，我会给你一段文本:"
+        #              "你需要从提供的文本中，**准确、完整地提取结构化信息**:\n\n"
         #              "文本：\n{input}\n\n"
         #              "输出符合要求的JSON对象:{format_instructions}。",
         #     input_variables=["input"],
-        #     partial_variables={"format_instructions": parser.get_format_instructions()},
+        #     partial_variables={"format_instructions": base_parser.get_format_instructions()},
         # )
+        # 构建增强提示词
         extractor = LegalDocumentExtractor()
-        prompt = extractor.build_enhanced_prompt(
-            model_cls=model_cls,
-            parser=parser,
+        prompt = extractor.build_enhanced_prompt(model_cls=model_cls, parser=base_parser)
+
+        # 包装错误自动修复解析器
+        parser = RetryWithErrorOutputParser.from_llm(
+            parser=base_parser,
+            llm=self.llm,
+            max_retries=1
         )
+
         # 查看字段描述
         print(prompt.partial_variables["field_descriptions"])
-
         # 构建 chain
         chain = prompt | self.llm
 
         for i, chunk in enumerate(chunks):
             try:
+                prompt_value = prompt.format_prompt(input=chunk)
+
                 response = chain.invoke({"input": chunk})
 
                 # 统一取文本内容
@@ -143,11 +151,13 @@ class KeywordExtractor:
 
                 text = extract_json_block(text_content)
                 # 使用安全的模型验证器解析 JSON 或字典
-                parsed = self.safe_model_validate(model_cls, text)
+                # parsed = self.safe_model_validate(model_cls, text)
+                # 用 RetryWithErrorOutputParser 解析并自动修复错误
+                parsed = parser.parse_with_prompt(text, prompt_value)
 
                 # 合并结果
                 for k, v in parsed.model_dump().items():
-                    if k not in merged_result or merged_result[k] in [None, "", 0]:
+                    if k not in merged_result or merged_result[k] in [None, "", 0, [], {}]:
                         merged_result[k] = v
             except Exception as e:
                 raise BizException(message=f"[段落 {i}] 提取失败: {e}")

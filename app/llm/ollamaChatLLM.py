@@ -18,7 +18,14 @@ class OllamaChatLLM(BaseChatModel):
             base_url = settings.ollama_url
             if not base_url:
                 raise BizException(message="OLLAMA_URL 未配置")
-        self._ollama_llm = OllamaLLM(model=model, base_url=base_url, **kwargs)
+        temperature = kwargs.pop("temperature", 0.8)
+        top_p = kwargs.pop("top_p", 0.9)
+        top_k = kwargs.pop("top_k", 40)
+        self._ollama_llm = OllamaLLM(model=model, base_url=base_url, temperature=temperature, top_p=top_p, top_k=top_k,
+                                     **kwargs)
+        print(self._ollama_llm.temperature)
+        print(self._ollama_llm.top_p)
+        print(self._ollama_llm.top_k)
 
     def _generate(
             self,

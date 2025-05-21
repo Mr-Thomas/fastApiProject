@@ -8,7 +8,7 @@ class OllamaService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> str:
         try:
-            llm = OllamaChatLLM(model=model_name)
+            llm = OllamaChatLLM(model=model_name, **kwargs)
             messages = [HumanMessage(content=prompt)]
             result = llm.invoke(messages)
             return result.content

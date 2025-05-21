@@ -7,10 +7,10 @@ router = APIRouter()
 
 
 @router.post("/generate")
-def generate_text(request: GenerateTextRequest, stream: bool = False):
+def generate_text(request: GenerateTextRequest, stream: bool = False, temperature: float = 0.75):
     prompt = request.prompt
     model_name = request.model_name
     service_name = request.service_name
     service = LLMServiceFactory.create_service(service_name)
-    result = service.generate(prompt, model_name, stream=stream)
+    result = service.generate(prompt, model_name, stream=stream, temperature=temperature)
     return BaseResponse(code=0, message="Success", data={"generated_text": result})

@@ -1,5 +1,6 @@
-from typing import Optional, List
-from pydantic import BaseModel, Field
+import re
+from typing import Optional, List, Union
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from app.utils.document_process import LegalDocumentExtractor
 
@@ -31,69 +32,96 @@ class Person(BaseModel):
 
 
 class PartyInfo(BaseModel):
-    role: str = Field(None, description="角色（原告、被告等）")
-    name: str = Field(None, description="姓名")
-    gender: str = Field(None, description="性别")
-    date_of_birth: str = Field(None, description="出生日期")
-    ethnic_group: str = Field(None, description="民族（如汉族）")
-    address: str = Field(None, description="住址")
-    law_firm_name: str = Field(None, description="代理律师所属律所名称")
-    law_firm_address: str = Field(None, description="律所地址")
+    role: Optional[str] = Field(None, description="角色（原告、被告等）")
+    name: Optional[str] = Field(None, description="姓名")
+    gender: Optional[str] = Field(None, description="性别")
+    date_of_birth: Optional[str] = Field(None, description="出生日期")
+    ethnic_group: Optional[str] = Field(None, description="民族（如汉族）")
+    address: Optional[str] = Field(None, description="住址")
+    law_firm_name: Optional[str] = Field(None, description="代理律师所属律所名称")
+    law_firm_address: Optional[str] = Field(None, description="律所地址")
 
 
 class Judge(BaseModel):
-    role: str = Field(None, description="角色（审判员、书记员等）")
-    name: str = Field(None, description="姓名")
+    role: Optional[str] = Field(None, description="角色（审判员、审判长等）")
+    name: Optional[str] = Field(None, description="姓名")
 
-
-class ClaimDefense(BaseModel):
-    plaintiff_claims: List[str] = Field(None, description="原告诉讼请求")
-    facts_and_reasons: List[str] = Field(None, description="原告事实与理由")
-    defendant_defense: List[str] = Field(None, description="被告答辩")
+    @field_validator("role", "name", mode="before")
+    @classmethod
+    def flatten_list_if_needed(cls, v: Union[str, list, None]):
+        if v is None:
+            return None
+        # 如果是字符串直接返回
+        if isinstance(v, str):
+            return v.strip()
+        # 如果是列表，拼接为字符串（中文顿号“、”）
+        if isinstance(v, list) and all(isinstance(item, str) for item in v):
+            return "、".join(item.strip() for item in v if item.strip())
+        return v  # 非字符串或字符串列表，保持原样
 
 
 class Evidence(BaseModel):
-    party: str = Field(None, description="证据提交方（原告或被告）")
-    name: str = Field(None, description="证据名称")
-    purpose: str = Field(None, description="证明目的")
-    court_opinion: str = Field(None, description="法院认定")
+    party: Optional[str] = Field(None, description="证据提交方（原告或被告）")
+    name: Optional[str] = Field(None, description="证据名称")
+    purpose: Optional[str] = Field(None, description="证明目的")
+    court_opinion: Optional[str] = Field(None, description="法院认定")
 
-
-class FactFinding(BaseModel):
-    fact: List[str] = Field(None, description="法院查明的事实")
-    finding: List[str] = Field(None, description="法院认定意见或结论")
-
-
-class JudgmentBasis(BaseModel):
-    legal_basis: List[str] = Field(None, description="法律依据（法律条文）")
-    judgment_result: List[str] = Field(None, description="判决结果")
+    @field_validator('party', 'name', 'purpose', 'court_opinion', mode='before')
+    @classmethod
+    def validate_other_info(cls, v: Union[str, List[str], None]) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return v.strip()
+        if isinstance(v, list):
+            cleaned = [item.strip() for item in v if isinstance(item, str) and item.strip()]
+            return "、".join(cleaned) if cleaned else None
+        return str(v).strip()  # 最后一层兜底防御
 
 
 class JudgementInfo(BaseModel):
-    # 一、案件基本信息
-    court_name: str = Field(None, description="法院名称")
-    court_code: str = Field(None, description="案件编号")
-    cause_of_action: str = Field(None, description="案由（案子类型）")
-    filing_date: str = Field(None, description="立案时间")
-    trial_procedure: str = Field(None, description="审理程序（如简易程序）")
-    judgment_date: str = Field(None, description="结案时间（判决时间）")
-
-    judges: List[Judge] = Field(default=None, description="审判人员、书记员信息列表")
-
-    # 二、当事人信息
+    court_name: Optional[str] = Field(None, description="法院名称")
+    court_code: Optional[str] = Field(None, description="案件编号")
+    cause_of_action: Optional[str] = Field(None, description="案由（案子类型）")
+    filing_date: Optional[str] = Field(None, description="立案时间")
+    trial_procedure: Optional[str] = Field(None, description="审理程序（如简易程序）")
+    judgment_date: Optional[str] = Field(None, description="结案时间（判决时间）")
+    judges: List[Judge] = Field(None, description="审判人员信息列表")
     parties: List[PartyInfo] = Field(None, description="当事人信息列表")
-
-    # 三、诉讼请求与答辩意见
-    claim_defense: ClaimDefense = Field(None, description="诉讼答辩")
-
-    # 四、证据清单及认定
+    plaintiff_claims: List[str] = Field(default_factory=list, description="原告诉讼请求")
+    facts_and_reasons: List[str] = Field(default_factory=list, description="原告事实与理由")
+    defendant_defense: List[str] = Field(default_factory=list, description="被告答辩")
     evidences: List[Evidence] = Field(None, description="证据清单及认定")
+    facts: List[str] = Field(default_factory=list, description="法院查明的事实")
+    findings: List[str] = Field(default_factory=list, description="法院认定意见或结论")
+    legal_basis: List[str] = Field(default_factory=list, description="法律依据（法律条文）")
+    judgment_result: List[str] = Field(default_factory=list, description="判决结果")
+    other_info: List[str] = Field(default_factory=list, description="程序性信息（上诉权利）")
 
-    # 五、法院认定事实
-    fact_findings: List[FactFinding] = Field(None, description="法院查明事实与认定意见")
+    @field_validator("court_name", "court_code", "cause_of_action", "filing_date", "trial_procedure",
+                     "judgment_date", mode="before")
+    @classmethod
+    def clean_judgment_date(cls, v):
+        if v is None:
+            return None
+        v = str(v).strip()
+        return v or None  # 空字符串也转 None
 
-    # 六、判决依据及判决内容
-    legal_judgment: JudgmentBasis = Field(None, description="判决依据及判决内容(法律依据、判决情况)")
+    @field_validator('plaintiff_claims', 'facts_and_reasons', 'defendant_defense', 'facts', 'findings',
+                     'legal_basis', 'judgment_result', 'other_info', mode='before')
+    @classmethod
+    def validate_other_info(cls, v: Union[str, List[str], None]) -> List[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v]
+        return list(v)
 
-    # 七、程序性告知
-    other_info: List[str] = Field(None, description="程序性信息（上诉权利）")
+    @field_validator('judges', 'parties', 'evidences', mode='before')
+    @classmethod
+    def validate_evidences(cls, v: Union[dict, List[dict], None]) -> List[dict]:
+        if v is None:
+            return []
+        if isinstance(v, dict):
+            return [v]
+        return list(v)

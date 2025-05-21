@@ -7,11 +7,10 @@ from app.llm.tongyiLLM import TongyiAILLM
 class TongyiAiService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> str:
-        is_stream = kwargs.get('stream', False)  # 从 kwargs 中获取是否流式输出的参数
         try:
             llm = TongyiAILLM(model_name=model_name)
             messages = [HumanMessage(content=prompt)]
-            result = llm.invoke(messages, stream=is_stream)
+            result = llm.invoke(messages, **kwargs)
             return result.content
         except Exception as e:
             # 如果你有统一异常处理器，也可以让它抛出 BizException 或记录日志
