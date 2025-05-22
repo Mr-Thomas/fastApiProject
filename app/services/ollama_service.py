@@ -8,9 +8,9 @@ class OllamaService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> str:
         try:
-            llm = OllamaChatLLM(model=model_name, **kwargs)
+            llm = OllamaChatLLM(model_name=model_name, **kwargs)
             messages = [HumanMessage(content=prompt)]
-            result = llm.invoke(messages)
+            result = llm.invoke(messages, **kwargs)
             return result.content
         except Exception as e:
             # 如果你有统一异常处理器，也可以让它抛出 BizException 或记录日志

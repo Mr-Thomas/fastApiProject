@@ -1,7 +1,10 @@
 from typing import List, Optional, Any, Mapping
 from langchain.schema import AIMessage, BaseMessage, ChatResult, ChatGeneration
 from langchain.chat_models.base import BaseChatModel
+from langchain_core.messages import HumanMessage
+from langchain_core.outputs import GenerationChunk
 from langchain_ollama import OllamaLLM
+from pydantic import Field
 
 from app.core.config import settings
 from app.core.exceptions import BizException
@@ -11,21 +14,20 @@ from app.services.llm_registry import register_llm
 @register_llm("ollama")
 class OllamaChatLLM(BaseChatModel):
     """基于 OllamaLLM 封装的 ChatModel，兼容 LangChain 聊天接口"""
+    model_name: str = Field(default="qwen2.5:14b", description="模型名称")
+    temperature: float = Field(default=0.8, description="温度参数")
 
-    def __init__(self, *, model: str, base_url: Optional[str] = None, **kwargs):
+    def __init__(self, *, model_name: str, base_url: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
+        self.model_name = model_name  # 关键赋值
         if base_url is None:
             base_url = settings.ollama_url
             if not base_url:
                 raise BizException(message="OLLAMA_URL 未配置")
-        temperature = kwargs.pop("temperature", 0.8)
-        top_p = kwargs.pop("top_p", 0.9)
-        top_k = kwargs.pop("top_k", 40)
-        self._ollama_llm = OllamaLLM(model=model, base_url=base_url, temperature=temperature, top_p=top_p, top_k=top_k,
-                                     **kwargs)
+        self.temperature = kwargs.pop("temperature", 0.8)
+        self._ollama_llm = OllamaLLM(model=self.model_name, base_url=base_url, temperature=self.temperature, **kwargs)
         print(self._ollama_llm.temperature)
-        print(self._ollama_llm.top_p)
-        print(self._ollama_llm.top_k)
+        print(self._ollama_llm.model)
 
     def _generate(
             self,
@@ -33,16 +35,28 @@ class OllamaChatLLM(BaseChatModel):
             stop: Optional[List[str]] = None,
             **kwargs: Any,
     ) -> ChatResult:
+        is_stream = kwargs.get('stream', False)
         prompt = self._messages_to_prompt(messages)
-        # 调用内部 OllamaLLM 的文本生成接口
-        llm_result = self._ollama_llm._generate([prompt], stop=stop, **kwargs)
-        text = llm_result.generations[0][0].text
-        generation = ChatGeneration(message=AIMessage(content=text))
+
+        # 删除 temperature 防止重复传入（初始化已经传入了）
+        kwargs.pop("temperature", None)
+        kwargs.pop("stream", None)
+
+        if is_stream:
+            chunks: List[GenerationChunk] = list(self._ollama_llm._stream(prompt, stop=stop, **kwargs))
+            full_text = "".join(chunk.text for chunk in chunks)
+        else:
+            llm_result = self._ollama_llm._generate([prompt], stop=stop, **kwargs)
+            full_text = llm_result.generations[0][0].text
+        generation = ChatGeneration(message=AIMessage(content=full_text))
         return ChatResult(generations=[generation])
 
     def _messages_to_prompt(self, messages: List[BaseMessage]) -> str:
-        # 简单拼接消息内容，带角色提示，或者根据需要调整格式
+        # 仅支持单一 user message，以防多轮误导模型结构输出
+        if len(messages) == 1 and isinstance(messages[0], HumanMessage):
+            return messages[0].content
         prompt = ""
+        # 简单拼接消息内容，带角色提示，或者根据需要调整格式
         for msg in messages:
             role = msg.type  # human, ai, system
             if role == "human":

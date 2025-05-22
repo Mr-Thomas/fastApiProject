@@ -73,9 +73,11 @@ class FileService:
         return chunks
 
     async def format_document(self, text: str) -> Dict[str, Any]:
-        # llm = get_llm("ollama", model="deepseek-r1:14b", temperature=0, top_p=0.1, top_k=1)
-        llm = get_llm("tongyi", model="qwen-plus", temperature=0)
+        # llm = get_llm("ollama", model_name="modelscope.cn/Qwen/QwQ-32B-GGUF:latest", temperature=0)
+        llm = get_llm("tongyi", model_name="qwen-plus", temperature=0)
+        print(llm.temperature, llm.model_name)
         extractor = KeywordExtractor(llm, model_path="D:/pyWorkspace/fastApiProject/app/models/bge-small-zh",
                                      similarity_threshold=0.75)
-        format = extractor.extract_from_text_by_model(text=text, model_cls=JudgementInfo)
+        # format = extractor.extract_from_text_by_model(text=text, model_cls=JudgementInfo)
+        format = extractor.extract_whole_text_by_model(text=text, model_cls=JudgementInfo)
         return format

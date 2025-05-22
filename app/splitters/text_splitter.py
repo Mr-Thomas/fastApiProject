@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
 from app.core.exceptions import BizException
+from app.core.logger import logger
 from app.llm.tongyiLLM import TongyiAILLM
 from langchain.schema import AIMessage
 
@@ -66,35 +67,6 @@ class KeywordExtractor:
         """暴露原始切分结果"""
         return self.splitter.split(text)
 
-    def extract_from_chunks(
-            self,
-            chunks: List[str],
-            prompt_template: str
-    ) -> Dict[str, Any]:
-        """支持自定义 prompt 模板从多个 chunks 抽取合并结构信息"""
-        merged_result: Dict[str, Any] = {}
-
-        for i, chunk in enumerate(chunks):
-            full_prompt = f"{prompt_template}\n\n{chunk}"
-            try:
-                response = self.llm.invoke(full_prompt)
-                content = response.content if isinstance(response, AIMessage) else str(response)
-
-                if not content.strip():
-                    continue
-
-                content = re.sub(r'^```(?:json)?|\s*```\s*$', '', content, flags=re.MULTILINE).strip()
-                extracted = json.loads(content)
-
-                if isinstance(extracted, dict):
-                    for k, v in extracted.items():
-                        if k not in merged_result or merged_result[k] in [None, "", 0]:
-                            merged_result[k] = v
-            except Exception as e:
-                raise BizException(message=f"extract_from_chunks失败: {e}")
-
-        return merged_result
-
     def extract_from_text_by_model(
             self,
             model_cls: Type[BaseModel],  # 结构体模型，如 Person
@@ -135,23 +107,7 @@ class KeywordExtractor:
             try:
                 prompt_value = prompt.format_prompt(input=chunk)
 
-                response = chain.invoke({"input": chunk})
-
-                # 统一取文本内容
-                if isinstance(response, str):
-                    text_content = response
-                elif hasattr(response, "content"):
-                    text_content = response.content
-                else:
-                    # 兜底，转换成字符串
-                    text_content = str(response)
-
-                if "<think>" in text_content:
-                    text_content = clean_llm_output_robust(text_content)
-
-                text = extract_json_block(text_content)
-                # 使用安全的模型验证器解析 JSON 或字典
-                # parsed = self.safe_model_validate(model_cls, text)
+                text = self._data_cleaning(chain, chunk)
                 # 用 RetryWithErrorOutputParser 解析并自动修复错误
                 parsed = parser.parse_with_prompt(text, prompt_value)
 
@@ -163,6 +119,20 @@ class KeywordExtractor:
                 raise BizException(message=f"[段落 {i}] 提取失败: {e}")
 
         return merged_result
+
+    def _data_cleaning(self, chain, chunk):
+        response = chain.invoke({"input": chunk})
+        # 统一取文本内容
+        if isinstance(response, str):
+            text_content = response
+        elif hasattr(response, "content"):
+            text_content = response.content
+        else:
+            # 兜底，转换成字符串
+            text_content = str(response)
+        if "<think>" in text_content:
+            text_content = clean_llm_output_robust(text_content)
+        return extract_json_block(text_content)
 
     @staticmethod
     def safe_model_validate(model_cls: Type[BaseModel], data: Any) -> BaseModel:
@@ -180,85 +150,32 @@ class KeywordExtractor:
         else:
             raise TypeError(f"无法识别的数据类型: {type(data)}")
 
-    def extract_from_text_by_model_bak(
-            self,
-            model_cls: Type[BaseModel],
-            text: str,
-    ) -> Dict[str, Any]:
-
-        chunks = self.splitter.split(text)
-        merged_result: Dict[str, Any] = {}
-        debug_info: List[str] = []
-
-        # 将目标模型转换为 JSON schema 字段说明
-        fields_description = ", ".join(model_cls.model_fields.keys())
-
-        prompt = PromptTemplate(
-            template=(
-                "请从下列文本中提取以下字段的结构化信息：{fields}。\n\n"
-                "文本：\n{input}\n\n"
-                "请以JSON对象格式输出，禁止输出数组或其他结构。"
-            ),
-            input_variables=["input"],
-            partial_variables={"fields": fields_description},
-        )
-
-        # 使用更宽容的 JSON 解析器
-        parser = JsonOutputKeyToolsParser(key_name="")  # 输出完整 JSON，无需从某 key 中取值
-        chain = prompt | self.llm | parser
-
-        for i, chunk in enumerate(chunks):
-            try:
-                result: dict = chain.invoke({"input": chunk})
-                for k, v in result.items():
-                    if v in [None, "", 0]:
-                        continue
-                    if isinstance(v, list):
-                        merged_result.setdefault(k, [])
-                        merged_result[k].extend([item for item in v if item not in merged_result[k]])
-                    elif isinstance(v, dict):
-                        merged_result.setdefault(k, {})
-                        merged_result[k].update({kk: vv for kk, vv in v.items() if vv})
-                    else:
-                        if k not in merged_result or merged_result[k] in [None, "", 0]:
-                            merged_result[k] = v
-            except Exception as e:
-                debug_info.append(f"[段落 {i}] 提取失败: {e}\n内容: {chunk[:100]}...")
-
-        if debug_info:
-            raise BizException(
-                message="部分段落提取失败，请检查模型结构或输出格式",
-                data={"errors": debug_info}
-            )
-
-        return merged_result
-
     def extract_whole_text_by_model(
             self,
             model_cls: Type[BaseModel],  # 结构体模型，如 Person
             text: str,  # 待提取的完整文本
     ) -> Dict[str, Any]:
         # 设置解析器
-        parser = PydanticOutputParser(pydantic_object=model_cls)
-
-        prompt = PromptTemplate(
-            template="从下列文本中提取结构化信息:\n{input}\n{format_instructions}",
-            input_variables=["input"],
-            partial_variables={"format_instructions": parser.get_format_instructions()},
+        base_parser = PydanticOutputParser(pydantic_object=model_cls)
+        # 构建增强提示词
+        extractor = LegalDocumentExtractor()
+        prompt = extractor.build_enhanced_prompt(model_cls=model_cls, parser=base_parser)
+        # 包装错误自动修复解析器
+        parser = RetryWithErrorOutputParser.from_llm(
+            parser=base_parser,
+            llm=self.llm,
+            max_retries=1
         )
-
         # 构建 chain
-        chain = prompt | self.llm | parser
-
+        chain = prompt | self.llm
         try:
-            instance: BaseModel = chain.invoke({"input": text})
-            return instance.model_dump()
+            prompt_value = prompt.format_prompt(input=text)
+            resp_text = self._data_cleaning(chain, text)
+            # 用 RetryWithErrorOutputParser 解析并自动修复错误
+            parsed = parser.parse_with_prompt(resp_text, prompt_value)
+            return parsed.model_dump()
         except Exception as e:
             raise BizException(message=f"整段文本结构化抽取失败: {e}")
-
-    def extract_from_text(self, text: str, prompt: str) -> Dict[str, Any]:
-        chunks = self.get_chunks(text)
-        return self.extract_from_chunks(chunks, prompt)
 
     def refine_keywords(self, keywords: List[str], top_k: int = 20) -> List[str]:
         prompt = (
@@ -272,16 +189,5 @@ class KeywordExtractor:
                 if isinstance(refined, list):
                     return refined
             except Exception as e:
-                print(f"[警告] 关键词精炼失败：{e}")
+                logger.warning(f"[警告] 关键词精炼失败：{e}")
         return keywords
-
-
-if __name__ == '__main__':
-    llm = TongyiAILLM(api_key="sk-762be7bbcf42464fbbad8e818b34bec7")
-    extractor = KeywordExtractor(llm, model_path="../models/bge-small-zh", similarity_threshold=0.75)
-    file_path = ["../documents/page_1.jpg", "../documents/page_2.jpg"]
-    text = load_jpg_file_list(file_path)
-    text_list = extractor.get_chunks(text=text)
-    json_list = extractor.extract_from_text(text=text,
-                                            prompt="请从以下文本提取原告(姓名、地址)、被告(姓名、地址)、小区名称、逾期费用、物业费，分别用plaintiff_name,plaintiff_address,defendant_name,defendant_address,cell_name,overdue_charge,property_fee表示，响应格式为json串，不要包含其他任何内容或者格式")
-    print(json_list)

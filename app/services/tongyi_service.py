@@ -8,7 +8,7 @@ class TongyiAiService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> str:
         try:
-            llm = TongyiAILLM(model_name=model_name)
+            llm = TongyiAILLM(model_name=model_name, **kwargs)
             messages = [HumanMessage(content=prompt)]
             result = llm.invoke(messages, **kwargs)
             return result.content

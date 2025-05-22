@@ -4,9 +4,11 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.exceptions import BizException
+from app.main import app
 from app.schemas.base_response import BaseResponse
 
 
+@app.exception_handler(BizException)
 async def biz_exception_handler(request: Request, exc: BizException):
     return JSONResponse(
         status_code=200,
@@ -18,6 +20,7 @@ async def biz_exception_handler(request: Request, exc: BizException):
     )
 
 
+@app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     error_details = []
     for err in exc.errors():
@@ -39,6 +42,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+@app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,

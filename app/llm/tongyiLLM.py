@@ -21,14 +21,10 @@ class TongyiAILLM(BaseChatModel):
     model_name: str = Field("qwen-plus", description="Model name")
     temperature: float = Field(0.75, description="Temperature for sampling")
 
-    def __init__(self,
-                 api_key: Optional[str] = None,
-                 model_name: Optional[str] = None,
-                 **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.model_name = model_name or "qwen-plus"
-        # 提取获取 API key 的逻辑到单独方法
-        self.api_key = self._get_api_key(api_key)
+        self.model_name = kwargs.get("model_name", "qwen-plus")
+        self.api_key = self._get_api_key(kwargs.get("api_key"))
 
     def _get_api_key(self, api_key: Optional[str] = None) -> str:
         """
