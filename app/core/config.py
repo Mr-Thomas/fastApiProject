@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True, validation_alias="DEBUG")
     log_dir: str = Field(default="logs", validation_alias="LOG_DIR")
     env: str = Field(default="dev", validation_alias="ENV")
+    api_prefix: str = Field(default="/api", validation_alias="API_PREFIX")
 
     # 添加 ollama_url 属性
     ollama_url: str = Field(default="", validation_alias="OLLAMA_URL")

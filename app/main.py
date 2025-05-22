@@ -1,12 +1,7 @@
 from fastapi import FastAPI
-from app.api.llm import llm_controller, file_controller
+from app.api.router import api_router
 from app.core.config import settings
 from app.core.logger import logger
-
-
-def register_routers(app: FastAPI):
-    app.include_router(llm_controller.router, prefix="/api")
-    app.include_router(file_controller.router, prefix="/api")
 
 
 def create_app() -> FastAPI:
@@ -19,7 +14,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc"
     )
 
-    register_routers(app)
+    # 注册总路由
+    app.include_router(api_router)
 
     # 启动日志
     logger.info("🚀 FastAPI app created successfully!")
