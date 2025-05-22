@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.api.llm import llm_controller, file_controller
 from app.core.config import settings
+from app.core.logger import logger
 
 
 def register_routers(app: FastAPI):
@@ -19,6 +20,11 @@ def create_app() -> FastAPI:
     )
 
     register_routers(app)
+
+    # 启动日志
+    logger.info("🚀 FastAPI app created successfully!")
+
+    return app
 
 
 app = create_app()
