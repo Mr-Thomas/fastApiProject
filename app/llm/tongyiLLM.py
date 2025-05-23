@@ -1,7 +1,6 @@
 import json
 from http import HTTPStatus
 from typing import List, Optional, Any, Mapping, Union, Generator
-
 from dashscope.api_entities.dashscope_response import GenerationResponse
 from langchain.schema import (
     AIMessage,
