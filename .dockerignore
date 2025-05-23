@@ -1,0 +1,22 @@
+# 忽略 Git 文件
+.git/
+.gitignore
+
+# 忽略编辑器和系统文件
+.idea/
+.DS_Store
+
+# 忽略日志和输出
+logs/
+*.log
+
+# 忽略 Dockerfile 本身和 dockerignore
+Dockerfile
+.dockerignore
+
+# 忽略测试文件（如你只部署正式代码）
+tests/
+
+# 忽略环境变量（防止泄露）
+.env
+.env.*

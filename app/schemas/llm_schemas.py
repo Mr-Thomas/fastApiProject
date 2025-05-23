@@ -44,7 +44,6 @@ class Judge(BaseModel):
     name: Optional[str] = Field(None, description="姓名")
 
     @field_validator("role", "name", mode="before")
-    @classmethod
     def flatten_list_if_needed(cls, v: Union[str, list, None]):
         if v is None:
             return None
@@ -64,7 +63,6 @@ class Evidence(BaseModel):
     court_opinion: Optional[str] = Field(None, description="法院认定")
 
     @field_validator('party', 'name', 'purpose', 'court_opinion', mode='before')
-    @classmethod
     def validate_other_info(cls, v: Union[str, List[str], None]) -> Optional[str]:
         if v is None:
             return None
@@ -97,7 +95,6 @@ class JudgementInfo(BaseModel):
 
     @field_validator("court_name", "court_code", "cause_of_action", "filing_date", "trial_procedure",
                      "judgment_date", mode="before")
-    @classmethod
     def clean_judgment_date(cls, v):
         if v is None:
             return None
@@ -106,7 +103,6 @@ class JudgementInfo(BaseModel):
 
     @field_validator('plaintiff_claims', 'facts_and_reasons', 'defendant_defense', 'facts', 'findings',
                      'legal_basis', 'judgment_result', 'other_info', mode='before')
-    @classmethod
     def validate_other_info(cls, v: Union[str, List[str], None]) -> List[str]:
         if v is None:
             return []
@@ -115,7 +111,6 @@ class JudgementInfo(BaseModel):
         return list(v)
 
     @field_validator('judges', 'parties', 'evidences', mode='before')
-    @classmethod
     def validate_evidences(cls, v: Union[dict, List[dict], None]) -> List[dict]:
         if v is None:
             return []

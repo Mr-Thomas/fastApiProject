@@ -1,1 +1,4 @@
 /app/documents/
+/logs/
+/tests/
+test_main.http
