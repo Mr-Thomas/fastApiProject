@@ -1,6 +1,9 @@
 import io
 from typing import List, Dict, Any
-from PIL import Image
+
+import cv2
+import numpy as np
+from PIL import Image, ImageEnhance, ImageFilter
 import fitz  # PyMuPDF
 from fastapi import UploadFile
 from langchain_ollama import OllamaLLM
@@ -32,8 +35,16 @@ class FileService:
     async def _extract_from_image(self, file: UploadFile) -> str:
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
-        result, _ = self.ocr_engine(image)
-        ocr_result = [item[1] for item in result]
+        # 预处理：增强对比度和锐化，帮助OCR识别印章文字
+        enhancer = ImageEnhance.Contrast(image)
+        image_enhanced = enhancer.enhance(2.0)  # 增强对比度，系数可调
+        image_enhanced = image_enhanced.filter(ImageFilter.SHARPEN)  # 锐化
+        # PIL Image 转 numpy ndarray (RGB)
+        image_np = np.array(image_enhanced)
+        # 转成 BGR，适配 RapidOCR
+        image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        result, _ = self.ocr_engine(image_bgr)
+        ocr_result = [item[1] for item in result if item[1].strip() != ""]  # 过滤空结果
         return "\n".join(ocr_result)
 
     async def _extract_from_docx(self, file: UploadFile) -> str:
@@ -67,8 +78,7 @@ class FileService:
     async def chunk_document(self, text: str) -> List[str]:
         # llm = get_llm("tongyi", model="qwen-plus-latest")
         llm = OllamaLLM(base_url=settings.ollama_url, model="deepseek-r1:14b")
-        extractor = KeywordExtractor(llm, model_path="D:/pyWorkspace/fastApiProject/app/models/bge-small-zh",
-                                     similarity_threshold=0.75)
+        extractor = KeywordExtractor(llm, model_path="D:/pyWorkspace/fastApiProject/app/models/bge-small-zh")
         chunks = extractor.get_chunks(text=text)
         return chunks
 
@@ -76,8 +86,7 @@ class FileService:
         # llm = get_llm("ollama", model_name="modelscope.cn/Qwen/QwQ-32B-GGUF:latest", temperature=0)
         llm = get_llm("tongyi", model_name="qwen-plus", temperature=0)
         print(llm.temperature, llm.model_name)
-        extractor = KeywordExtractor(llm, model_path="D:/pyWorkspace/fastApiProject/app/models/bge-small-zh",
-                                     similarity_threshold=0.75)
+        extractor = KeywordExtractor(llm, model_path="D:/pyWorkspace/fastApiProject/app/models/bge-small-zh")
         # format = extractor.extract_from_text_by_model(text=text, model_cls=JudgementInfo)
         format = extractor.extract_whole_text_by_model(text=text, model_cls=JudgementInfo)
         return format

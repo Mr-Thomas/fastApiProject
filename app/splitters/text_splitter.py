@@ -2,21 +2,15 @@ import re
 import json
 import numpy as np
 from typing import List, Optional, Any, Dict, Type
-
-from langchain_core.output_parsers import PydanticOutputParser, JsonOutputKeyToolsParser
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain.output_parsers.retry import RetryWithErrorOutputParser
-from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
-
 from app.core.exceptions import BizException
 from app.core.logger import logger
-from app.llm.tongyiLLM import TongyiAILLM
 from langchain.schema import AIMessage
-
 from app.utils.clean_llm_output import clean_llm_output_robust, extract_json_block
 from app.utils.document_process import LegalDocumentExtractor
-from app.utils.ocr_util import load_jpg_file_list
 
 
 class SemanticTextSplitter:
@@ -46,10 +40,22 @@ class SemanticTextSplitter:
         return chunks
 
     def _split_sentences(self, text: str) -> List[str]:
-        """使用中文语句标点切句"""
-        raw = re.split(r'(。|！|\!|？|\?|；|;)', text)
-        sentences = ["".join(x).strip() for x in zip(raw[::2], raw[1::2])]
-        return [s for s in sentences if s]
+        """支持中文标点 + 段落换行的句子切分"""
+        # 首先按中文句子标点切分（保留标点）
+        punctuated = re.split(r'([。！!？?；;])', text)
+        sentences = ["".join(x).strip() for x in zip(punctuated[::2], punctuated[1::2])]
+
+        # 拼接最后一个残句（如果标点数是奇数）
+        if len(punctuated) % 2 != 0:
+            sentences.append(punctuated[-1].strip())
+
+        # 补充：再按段落换行切割（\n 两次或多个空行作为段落）
+        final_sentences = []
+        for sent in sentences:
+            chunks = re.split(r'\n{1,}|\r\n{1,}', sent)
+            final_sentences.extend([chunk.strip() for chunk in chunks if chunk.strip()])
+
+        return final_sentences
 
     def _cosine_similarity(self, vec1, vec2) -> float:
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))

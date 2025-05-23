@@ -1,14 +1,11 @@
-import re
 from typing import Optional, List, Union
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-
-from app.utils.document_process import LegalDocumentExtractor
 
 
 class GenerateTextRequest(BaseModel):
     prompt: str = Field(..., min_length=1, description="prompt不能为空！")
-    service_name: str = "ollama"
-    model_name: str = "deepseek-r1:1.5b"
+    service_name: str = Field("ollama", description="服务名称，默认为 ollama")
+    model_name: str = Field("deepseek-r1:1.5b", description="模型名称，默认为 deepseek-r1:1.5b")
 
 
 class Person(BaseModel):

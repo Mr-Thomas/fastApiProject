@@ -1,5 +1,8 @@
+import json
 from http import HTTPStatus
-from typing import List, Optional, Any, Mapping
+from typing import List, Optional, Any, Mapping, Union, Generator
+
+from dashscope.api_entities.dashscope_response import GenerationResponse
 from langchain.schema import (
     AIMessage,
     BaseMessage,
@@ -9,8 +12,8 @@ from langchain.schema import (
 from langchain.chat_models.base import BaseChatModel
 from dashscope import Generation
 from pydantic import Field
+from fastapi.responses import StreamingResponse
 from app.core.config import settings
-
 from app.core.exceptions import BizException
 from app.services.llm_registry import register_llm
 
@@ -53,6 +56,40 @@ class TongyiAILLM(BaseChatModel):
             stop: Optional[List[str]] = None,
             **kwargs: Any,
     ) -> ChatResult:
+        try:
+            payload = {
+                "api_key": self.api_key,
+                "model": self.model_name,
+                "messages": self._convert_messages(messages),
+                "temperature": self.temperature,
+                **kwargs,
+            }
+            if stop:
+                payload["stop"] = stop
+
+            is_stream = kwargs.get('stream', False)
+            # 增量式流式输出【默认false】
+            payload["incremental_output"] = is_stream
+
+            response = Generation.call(**payload)
+
+            if response.status_code != HTTPStatus.OK:
+                raise BizException(code=response.status_code, message=response.message)
+            content = response.output.text
+            generation = ChatGeneration(message=AIMessage(content=content),
+                                        generation_info={"model": self.model_name})
+            return ChatResult(generations=[generation])
+
+        except Exception as e:
+            raise BizException(message=f"[TongyiAILLM_generate] 调用失败: {str(e)}") from e
+
+    def stream_generate(
+            self,
+            messages: List[BaseMessage],
+            stop: Optional[List[str]] = None,
+            **kwargs: Any,
+    ) -> StreamingResponse:
+        """处理流式响应（FastAPI 专用）"""
         payload = {
             "api_key": self.api_key,
             "model": self.model_name,
@@ -64,25 +101,36 @@ class TongyiAILLM(BaseChatModel):
             payload["stop"] = stop
 
         is_stream = kwargs.get('stream', False)
+        # 增量式流式输出【默认false】
+        payload["incremental_output"] = is_stream
 
         response = Generation.call(**payload)
+        return StreamingResponse(
+            content=self._stream_resp(response),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Stream-Type": "text-event-stream"
+            }
+        )
 
-        if is_stream:
-            # 流式响应处理
-            full_content = ""
+    def _stream_resp(
+            self,
+            response: Union[GenerationResponse, Generator[GenerationResponse, None, None]]
+    ) -> Generator[str, None, None]:
+        try:
             for partial_response in response:
                 if partial_response.status_code != HTTPStatus.OK:
                     raise BizException(code=partial_response.status_code, message=partial_response.message)
+                # 这里打印是为了调试，可以去掉
                 print(partial_response.output.text, end='', flush=True)
-                full_content += partial_response.output.text
-            content = full_content
-        else:
-            if response.status_code != HTTPStatus.OK:
-                raise BizException(code=response.status_code, message=response.message)
-            content = response.output.text
-
-        generation = ChatGeneration(message=AIMessage(content=content), generation_info={"model": self.model_name})
-        return ChatResult(generations=[generation])
+                # SSE 格式的事件数据，两个换行表示事件结束
+                yield f"data:{json.dumps({'text': partial_response.output.text})}\n\n"
+            # 发送完整内容，结束标记
+            yield f"data:[DONE]\n\n"
+        except Exception as e:
+            # 出错时发送错误信息，前端也可以捕获并处理
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     def _convert_messages(self, messages: List[BaseMessage]) -> List[dict]:
         """
