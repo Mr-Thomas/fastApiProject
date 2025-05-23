@@ -67,10 +67,6 @@ class TongyiAILLM(BaseChatModel):
             if stop:
                 payload["stop"] = stop
 
-            is_stream = kwargs.get('stream', False)
-            # 增量式流式输出【默认false】
-            payload["incremental_output"] = is_stream
-
             response = Generation.call(**payload)
 
             if response.status_code != HTTPStatus.OK:
@@ -122,14 +118,11 @@ class TongyiAILLM(BaseChatModel):
             for partial_response in response:
                 if partial_response.status_code != HTTPStatus.OK:
                     raise BizException(code=partial_response.status_code, message=partial_response.message)
-                # 这里打印是为了调试，可以去掉
-                print(partial_response.output.text, end='', flush=True)
                 # SSE 格式的事件数据，两个换行表示事件结束
-                yield f"data:{json.dumps({'text': partial_response.output.text})}\n\n"
+                yield f"data:{json.dumps({'text': partial_response.output.text}, ensure_ascii=False)}\n\n"
             # 发送完整内容，结束标记
             yield f"data:[DONE]\n\n"
         except Exception as e:
-            # 出错时发送错误信息，前端也可以捕获并处理
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     def _convert_messages(self, messages: List[BaseMessage]) -> List[dict]:

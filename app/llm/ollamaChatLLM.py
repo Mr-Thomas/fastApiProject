@@ -1,3 +1,4 @@
+import json
 from typing import List, Optional, Any, Mapping
 from langchain.schema import AIMessage, BaseMessage, ChatResult, ChatGeneration
 from langchain.chat_models.base import BaseChatModel
@@ -5,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.outputs import GenerationChunk
 from langchain_ollama import OllamaLLM
 from pydantic import Field
-
+from fastapi.responses import StreamingResponse
 from app.core.config import settings
 from app.core.exceptions import BizException
 from app.services.llm_registry import register_llm
@@ -19,7 +20,7 @@ class OllamaChatLLM(BaseChatModel):
 
     def __init__(self, *, model_name: str, base_url: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
-        self.model_name = model_name  # 关键赋值
+        self.model_name = model_name
         if base_url is None:
             base_url = settings.ollama_url
             if not base_url:
@@ -35,21 +36,45 @@ class OllamaChatLLM(BaseChatModel):
             stop: Optional[List[str]] = None,
             **kwargs: Any,
     ) -> ChatResult:
-        is_stream = kwargs.get('stream', False)
         prompt = self._messages_to_prompt(messages)
 
         # 删除 temperature 防止重复传入（初始化已经传入了）
         kwargs.pop("temperature", None)
         kwargs.pop("stream", None)
 
-        if is_stream:
-            chunks: List[GenerationChunk] = list(self._ollama_llm._stream(prompt, stop=stop, **kwargs))
-            full_text = "".join(chunk.text for chunk in chunks)
-        else:
-            llm_result = self._ollama_llm._generate([prompt], stop=stop, **kwargs)
-            full_text = llm_result.generations[0][0].text
+        llm_result = self._ollama_llm._generate([prompt], stop=stop, **kwargs)
+        full_text = llm_result.generations[0][0].text
         generation = ChatGeneration(message=AIMessage(content=full_text))
         return ChatResult(generations=[generation])
+
+    def stream_generate(
+            self,
+            messages: List[BaseMessage],
+            stop: Optional[List[str]] = None,
+            **kwargs: Any,
+    ) -> StreamingResponse:
+        prompt = self._messages_to_prompt(messages)
+        # 删除 temperature 防止重复传入（初始化已经传入了）
+        kwargs.pop("temperature", None)
+        kwargs.pop("stream", None)
+        chunks: List[GenerationChunk] = list(self._ollama_llm._stream(prompt, stop=stop, **kwargs))
+
+        def stream_chunks():
+            try:
+                for chunk in chunks:
+                    yield f"data:{json.dumps({'text': chunk.text}, ensure_ascii=False)}\n\n"
+                yield f"data:[DONE]\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        return StreamingResponse(
+            content=stream_chunks(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Stream-Type": "text-event-stream"
+            }
+        )
 
     def _messages_to_prompt(self, messages: List[BaseMessage]) -> str:
         # 仅支持单一 user message，以防多轮误导模型结构输出
