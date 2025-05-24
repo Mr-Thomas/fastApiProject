@@ -15,7 +15,7 @@ from app.utils.document_process import LegalDocumentExtractor
 
 class SemanticTextSplitter:
     def __init__(self,
-                 model_path: str = "./models/bge-small-zh",  # 本地路径
+                 model_path: str = "./local_models/bge-small-zh",  # 本地路径
                  similarity_threshold: float = 0.65):
         self.model = SentenceTransformer(model_path)
         self.threshold = similarity_threshold

@@ -35,8 +35,20 @@ class PartyInfo(BaseModel):
     date_of_birth: Optional[str] = Field(None, description="出生日期")
     ethnic_group: Optional[str] = Field(None, description="民族（如汉族）")
     address: Optional[str] = Field(None, description="住址")
-    law_firm_name: Optional[str] = Field(None, description="代理律师所属律所名称")
+    law_firm_name: Optional[str] = Field(None, description="代理人以及代理律师所属律所名称")
     law_firm_address: Optional[str] = Field(None, description="律所地址")
+
+    @field_validator("law_firm_name", mode="before")
+    def flatten_list_if_needed(cls, v: Union[str, list, None]):
+        if v is None:
+            return None
+        # 如果是字符串直接返回
+        if isinstance(v, str):
+            return v.strip()
+        # 如果是列表，拼接为字符串（中文顿号“、”）
+        if isinstance(v, list) and all(isinstance(item, str) for item in v):
+            return ",".join(item.strip() for item in v if item.strip())
+        return v  # 非字符串或字符串列表，保持原样
 
 
 class Judge(BaseModel):

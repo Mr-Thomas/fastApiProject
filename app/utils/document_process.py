@@ -7,7 +7,7 @@ from collections import abc
 
 
 class LegalDocumentExtractor:
-    """法律文书结构化信息提取器（完整修复版）"""
+    """法律文书结构化信息提取器"""
 
     def build_enhanced_prompt(self, model_cls: Type[BaseModel], parser: BaseOutputParser) -> PromptTemplate:
         """
