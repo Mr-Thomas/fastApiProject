@@ -1,8 +1,59 @@
 import fitz  # PyMuPDF
 from typing import Union, List
-from pathlib import Path
 
 from app.core.exceptions import BizException
+
+import json
+from docx import Document
+from pathlib import Path
+
+
+def doc_to_labelstudio(docx_path, task_type="ner"):
+    """
+    将DOCX转换为Label Studio兼容的JSON格式
+    :param docx_path: 输入文件路径
+    :param task_type: 任务类型 (ner|text_classification)
+    :return: Label Studio格式的字典
+    """
+    doc = Document(docx_path)
+    text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+
+    # Label Studio基础模板
+    ls_template = {
+        "data": {
+            "text": text,
+            "file_name": Path(docx_path).name
+        },
+        "annotations": [{
+            "result": [],
+            "ground_truth": False,
+            "model_version": None
+        }]
+    }
+
+    # 根据不同任务类型调整结构
+    if task_type == "text_classification":
+        ls_template["annotations"][0]["result"] = [{
+            "type": "choices",
+            "value": {"choices": []}  # 等待标注的分类标签
+        }]
+
+    return ls_template
+
+
+if __name__ == '__main__':
+    # 配置路径
+    input_path = Path(
+        "D:\\pyWorkspace\\fastApiProject\\app\\documents\\doc_35803_离婚纠纷_（2022）豫1628民初6633号_判决书原文.docx")  # 替换为你的文件路径
+    output_json = "../documents/label_studio_import.json"
+
+    # 转换并保存
+    result = doc_to_labelstudio(input_path, task_type="ner")  # 或 text_classification
+
+    with open(output_json, 'w', encoding='utf-8') as f:
+        json.dump([result], f, ensure_ascii=False, indent=2)
+
+    print(f"Label Studio JSON 已生成: {output_json}")
 
 
 def extract_embedded_images(
