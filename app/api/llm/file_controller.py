@@ -36,5 +36,6 @@ async def ocr_upload(file: UploadFile = File(...), service: FileService = Depend
 
 @router.post("/image_to_markdown")
 async def ocr_upload(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
+    # todo 待完善，图片转markdown或者HTML
     md, html = await service.convert_image_to_markdown(file)
     return BaseResponse(code=0, message="Success", data={"md": md, "html": html})
