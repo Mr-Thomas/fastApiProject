@@ -4,7 +4,7 @@
 │   ├── core/                     # 项目核心配置和工具代码目录
 │   ├── llm/                      # 大语言模型相关代码目录
 │   ├── main.py                   # FastAPI 应用入口文件，注册路由和异常处理器
-│   ├── models/                   # 模型相关代码和文件目录
+│   ├── local_models/             # 本地打模型相关
 │   ├── schemas/                  # Pydantic 数据模型定义目录
 │   ├── services/                 # 业务服务逻辑代码目录
 │   ├── splitters/                # 文本分割和提取相关代码目录
