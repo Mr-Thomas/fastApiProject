@@ -32,3 +32,9 @@ async def ocr_upload(file: UploadFile = File(...), service: FileService = Depend
     ocr_text = await service.process_file(file)
     format = await service.format_document(ocr_text)
     return BaseResponse(code=0, message="Success", data={"format": format})
+
+
+@router.post("/image_to_markdown")
+async def ocr_upload(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
+    md, html = await service.convert_image_to_markdown(file)
+    return BaseResponse(code=0, message="Success", data={"md": md, "html": html})

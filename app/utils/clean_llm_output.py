@@ -1,5 +1,50 @@
 import json
 import re
+from markdown2 import markdown as md_to_html  # 引入 markdown 转 HTML 库  pip install markdown2
+import html
+
+
+def blocks_to_markdown_html(blocks):
+    markdown_parts = []
+    html_parts = []
+
+    for block in blocks:
+        block_type = block.get("type")
+
+        if block_type == "title":
+            text = block.get("text", "")
+            markdown_parts.append(f"# {text}")
+            html_parts.append(f"<h1>{html.escape(text)}</h1>")
+
+        elif block_type == "paragraph":
+            text = block.get("text", "")
+            markdown_parts.append(text)
+            html_parts.append(f"<p>{html.escape(text)}</p>")
+
+        elif block_type == "list":
+            items = block.get("items", [])
+            markdown_parts.extend([f"- {item}" for item in items])
+            html_list = "".join(f"<li>{html.escape(item)}</li>" for item in items)
+            html_parts.append(f"<ul>{html_list}</ul>")
+
+        elif block_type == "table":
+            md_table = block.get("markdown", "")
+            markdown_parts.append(md_table)
+            html_parts.append(md_to_html(md_table))  # 直接转 HTML
+
+        elif block_type == "image":
+            src = block.get("src") or block.get("path", "")
+            caption = block.get("caption", "")
+            # Markdown 语法
+            markdown_parts.append(f"![{caption}]({src})")
+            # HTML 图文结构
+            html_parts.append(
+                f"<figure><img src='{html.escape(src)}' style='max-width:100%;'/><figcaption>{html.escape(caption)}</figcaption></figure>"
+            )
+
+    markdown_output = '\n\n'.join(markdown_parts)
+    html_output = '\n'.join(html_parts)
+    return markdown_output, html_output
 
 
 def extract_json_block(text: str) -> str:

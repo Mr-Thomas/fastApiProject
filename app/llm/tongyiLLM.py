@@ -9,7 +9,7 @@ from langchain.schema import (
     ChatGeneration,
 )
 from langchain.chat_models.base import BaseChatModel
-from dashscope import Generation
+from dashscope import Generation, MultiModalConversation
 from pydantic import Field
 from fastapi.responses import StreamingResponse
 from app.core.config import settings
@@ -66,11 +66,17 @@ class TongyiAILLM(BaseChatModel):
             if stop:
                 payload["stop"] = stop
 
-            response = Generation.call(**payload)
+            if "vl" in self.model_name.lower():
+                response = MultiModalConversation.call(**payload)
+                if response.status_code != HTTPStatus.OK:
+                    raise BizException(code=response.status_code, message=response.message)
+                content = response.output.choices[0].message.content[0]["text"]
+            else:
+                response = Generation.call(**payload)
+                if response.status_code != HTTPStatus.OK:
+                    raise BizException(code=response.status_code, message=response.message)
+                content = response.output.text
 
-            if response.status_code != HTTPStatus.OK:
-                raise BizException(code=response.status_code, message=response.message)
-            content = response.output.text
             generation = ChatGeneration(message=AIMessage(content=content),
                                         generation_info={"model": self.model_name})
             return ChatResult(generations=[generation])

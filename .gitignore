@@ -1,4 +1,6 @@
 /app/documents/
 /logs/
 /tests/
+/app/local_models/
 test_main.http
+.idea/
