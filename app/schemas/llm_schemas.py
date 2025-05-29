@@ -52,7 +52,7 @@ class PartyInfo(BaseModel):
 
 
 class Judge(BaseModel):
-    role: Optional[str] = Field(None, description="角色（审判员、审判长等）")
+    role: Optional[str] = Field(None, description="角色（审判员、审判长、书记员等）")
     name: Optional[str] = Field(None, description="姓名")
 
     @field_validator("role", "name", mode="before")
