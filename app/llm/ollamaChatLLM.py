@@ -63,7 +63,7 @@ class OllamaChatLLM(BaseChatModel):
             try:
                 for chunk in chunks:
                     yield f"data:{json.dumps({'text': chunk.text}, ensure_ascii=False)}\n\n"
-                yield f"data:[DONE]\n\n"
+                yield "data:[DONE]\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 

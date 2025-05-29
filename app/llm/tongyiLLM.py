@@ -126,7 +126,7 @@ class TongyiAILLM(BaseChatModel):
                 # SSE 格式的事件数据，两个换行表示事件结束
                 yield f"data:{json.dumps({'text': partial_response.output.text}, ensure_ascii=False)}\n\n"
             # 发送完整内容，结束标记
-            yield f"data:[DONE]\n\n"
+            yield "data:[DONE]\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 

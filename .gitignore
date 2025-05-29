@@ -8,3 +8,4 @@ test_main.http
 *.xml
 *.ipr
 *.iws
+*.pyc

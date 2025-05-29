@@ -21,21 +21,21 @@ async def ocr_upload(file: UploadFile = File(...), service: FileService = Depend
 
 
 @router.post("/ocr_split")
-async def ocr_upload(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
+async def ocr_split(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
     ocr_text = await service.process_file(file)
     chunks = await service.chunk_document(ocr_text)
     return BaseResponse(code=0, message="Success", data={"chunks": chunks})
 
 
 @router.post("/ocr_split_format")
-async def ocr_upload(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
+async def ocr_split_format(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
     ocr_text = await service.process_file(file)
     format = await service.format_document(ocr_text)
     return BaseResponse(code=0, message="Success", data={"format": format})
 
 
 @router.post("/image_to_markdown")
-async def ocr_upload(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
+async def image_to_markdown(file: UploadFile = File(...), service: FileService = Depends(get_file_service)):
     # todo 待完善，图片转markdown或者HTML
     md, html = await service.convert_image_to_markdown(file)
     return BaseResponse(code=0, message="Success", data={"md": md, "html": html})

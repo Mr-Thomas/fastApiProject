@@ -14,3 +14,4 @@ rapidocr_onnxruntime
 python-multipart
 pymupdf
 python-docx
+markdown2
