@@ -48,6 +48,10 @@ def blocks_to_markdown_html(blocks):
 
 
 def extract_json_block(text: str) -> str:
+    """
+    从文本中提取 Markdown 格式中的 JSON 代码块，支持 ```json 或 ```json 开始的代码块。
+    """
+
     # 先找有结尾的代码块
     pattern_with_end = r"```json\s*\n([\s\S]*?)\n\s*```"
     match = re.search(pattern_with_end, text)
