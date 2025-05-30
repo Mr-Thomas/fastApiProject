@@ -4,6 +4,7 @@
 /app/local_models/
 test_main.http
 .idea/
+*.idea
 *.iml
 *.xml
 *.ipr

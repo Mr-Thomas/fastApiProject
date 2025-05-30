@@ -16,6 +16,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="wangweijun@192.168.11.198:10022 password (10)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="wangweijun@192.168.11.198:10022 password (2)">
         <serverdata>
           <mappings>
@@ -52,6 +59,20 @@
         </serverdata>
       </paths>
       <paths name="wangweijun@192.168.11.198:10022 password (7)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="wangweijun@192.168.11.198:10022 password (8)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="wangweijun@192.168.11.198:10022 password (9)">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
