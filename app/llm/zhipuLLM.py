@@ -2,12 +2,8 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import Field, PrivateAttr
 from typing import Optional, List, Any, Mapping
 from zhipuai import ZhipuAI
-from langchain.schema import (
-    AIMessage,
-    BaseMessage,
-    ChatResult,
-    ChatGeneration,
-)
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from app.core.config import settings
 from app.core.exceptions import BizException
 from app.services.llm_registry import register_llm

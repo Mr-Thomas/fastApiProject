@@ -1,5 +1,6 @@
-from typing import Optional, List, Union
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Optional, List, Union, Type
+from pydantic import BaseModel, Field, field_validator
+import json
 
 
 class GenerateTextRequest(BaseModel):
@@ -29,13 +30,13 @@ class Person(BaseModel):
 
 
 class PartyInfo(BaseModel):
-    role: Optional[str] = Field(None, description="角色（原告、被告等）")
+    role: Optional[str] = Field(None, description="角色（原告、被告、诉讼代理人等）")
     name: Optional[str] = Field(None, description="姓名")
     gender: Optional[str] = Field(None, description="性别")
     date_of_birth: Optional[str] = Field(None, description="出生日期")
     ethnic_group: Optional[str] = Field(None, description="民族（如汉族）")
     address: Optional[str] = Field(None, description="住址")
-    law_firm_name: Optional[str] = Field(None, description="代理人以及代理律师所属律所名称")
+    law_firm_name: Optional[str] = Field(None, description="诉讼代理人、诉讼代理律师所属律所名称")
     law_firm_address: Optional[str] = Field(None, description="律所地址")
 
     @field_validator("law_firm_name", mode="before")
@@ -129,3 +130,11 @@ class JudgementInfo(BaseModel):
         if isinstance(v, dict):
             return [v]
         return list(v)
+
+
+# 使用示例
+if __name__ == "__main__":
+    """获取法律文书的标准JSON Schema（带类型注解保证）"""
+    schema_dict = JudgementInfo.model_json_schema()
+    schema_dict.setdefault("description", "法律裁判文书结构化数据规范")
+    print(json.dumps(schema_dict, indent=2, ensure_ascii=False))

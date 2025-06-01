@@ -1,8 +1,14 @@
+import json
 from typing import Type, Optional, Any, Dict, List
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers.openai_functions import JsonOutputFunctionsParser
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain.output_parsers.retry import RetryWithErrorOutputParser
+from langchain_core.utils.function_calling import convert_to_openai_function
+from app.core.config import settings
 from app.core.exceptions import BizException
 from app.utils.clean_llm_output import clean_llm_output_robust, extract_json_block
 from app.utils.document_process import LegalDocumentExtractor
@@ -31,6 +37,7 @@ class KeywordExtractor:
             self,
             model_cls: Type[BaseModel],  # 结构体模型，如 Person
             text: str,  # 待提取的文本
+            max_retries: int = 1,  # 最大重试次数
     ) -> Dict[str, Any]:
         """
         多段文本中提取指定的结构化数据：
@@ -42,14 +49,15 @@ class KeywordExtractor:
         # 初始化输出解析器
         base_parser = PydanticOutputParser(pydantic_object=model_cls)
 
+        # 包装错误自动修复解析器
+        parser = RetryWithErrorOutputParser.from_llm(parser=base_parser, llm=self.llm, max_retries=max_retries)
+
         # 构建增强提示词
         extractor = LegalDocumentExtractor()
-        prompt = extractor.build_enhanced_prompt(model_cls=model_cls, parser=base_parser)
+        # prompt = extractor.build_enhanced_prompt(model_cls=model_cls, parser=base_parser)
+        prompt = extractor.build_prompt(model_cls=model_cls)
         # 查看字段描述
-        print(prompt.partial_variables["field_descriptions"])
-
-        # 包装错误自动修复解析器
-        parser = RetryWithErrorOutputParser.from_llm(parser=base_parser, llm=self.llm)
+        # print(prompt.partial_variables["field_descriptions"])
 
         # 构建 chain
         chain = prompt | self.llm
@@ -67,7 +75,7 @@ class KeywordExtractor:
                     if k not in merged_result or merged_result[k] in [None, "", 0, [], {}]:
                         merged_result[k] = v
             except Exception as e:
-                raise BizException(message=f"[段落 {i}] 提取失败: {e}")
+                raise BizException(message=f"[段落 {i}] 提取失败: {e}")from e
 
         return merged_result
 
@@ -75,6 +83,7 @@ class KeywordExtractor:
             self,
             model_cls: Type[BaseModel],  # 结构体模型，如 Person
             text: str,  # 待提取的完整文本
+            max_retries: int = 1,  # 最大重试次数
     ) -> Dict[str, Any]:
         """
         整段文本中提取指定的结构化数据：
@@ -83,12 +92,14 @@ class KeywordExtractor:
         # 设置解析器
         base_parser = PydanticOutputParser(pydantic_object=model_cls)
 
+        # 包装错误自动修复解析器
+        parser = RetryWithErrorOutputParser.from_llm(parser=base_parser, llm=self.llm, max_retries=max_retries)
+
         # 构建增强提示词
         extractor = LegalDocumentExtractor()
-        prompt = extractor.build_enhanced_prompt(model_cls=model_cls, parser=base_parser)
+        # prompt = extractor.build_enhanced_prompt(model_cls=model_cls, parser=base_parser)
+        prompt = extractor.build_prompt(model_cls=model_cls)
 
-        # 包装错误自动修复解析器
-        parser = RetryWithErrorOutputParser.from_llm(parser=base_parser, llm=self.llm)
         # 构建 chain
         chain = prompt | self.llm
         try:
@@ -98,7 +109,61 @@ class KeywordExtractor:
             parsed = parser.parse_with_prompt(resp_text, prompt_value)
             return parsed.model_dump()
         except Exception as e:
-            raise BizException(message=f"整段文本结构化抽取失败: {e}")
+            raise BizException(message=f"整段文本结构化抽取失败: {e}") from e
+
+    def extract_from_text_function(
+            self,
+            model_cls: Type[BaseModel],  # 结构体模型，如 Person
+            text: str,  # 待提取的文本
+    ) -> Dict[str, Any]:
+        """
+        Function Calling 方式提取指定的结构化数据：【不支持ollama】
+        多段文本中提取指定的结构化数据：
+        该方法将文本切分成多个段落，并对每个段落进行模型解析，最后将所有段落的解析结果合并。
+        """
+        chunks = self.splitter.split(text)
+        merged_result: Dict[str, Any] = {}
+        info_fn = convert_to_openai_function(model_cls)
+        extraction_model = self.llm.bind(functions=[info_fn], function_call={"name": info_fn["name"]})
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "你是一个结构化信息抽取助手，请根据用户提供的文本，提取出指定结构体中的字段"),
+            ("user", "以下是待抽取的原始文本：\n\n{input}")
+        ])
+        chain = prompt | extraction_model
+        for i, chunk in enumerate(chunks):
+            try:
+                resp = chain.invoke({"input": chunk})
+                result = json.loads(resp.content)
+                for k, v in result.items():
+                    if k not in merged_result or merged_result[k] in [None, "", 0, [], {}]:
+                        merged_result[k] = v
+            except Exception as e:
+                raise BizException(message=f"[段落 {i}] 提取失败: {e}") from e
+        return merged_result
+
+    def extract_whole_text_function(
+            self,
+            model_cls: Type[BaseModel],  # 结构体模型，如 Person
+            text: str,  # 待提取的文本
+    ) -> Dict[str, Any]:
+        """
+        Function Calling 方式提取指定的结构化数据：【不支持ollama】
+        整段文本中提取指定的结构化数据：
+        该方法将整个文本进行模型解析，最后输出解析结果。
+        """
+        # 1. 构建 OpenAI function schema
+        info_fn = convert_to_openai_function(model_cls)
+        # 2. 强制调用指定 function
+        extraction_model = self.llm.bind(functions=[info_fn], function_call={"name": info_fn["name"]})
+        # 3. prompt 模板
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "你是一个结构化信息抽取助手，请根据用户提供的文本，提取出指定结构体中的字段"),
+            ("user", "以下是待抽取的原始文本：\n\n{input}")
+        ])
+        chain = prompt | extraction_model
+        resp = chain.invoke({"input": text})
+        result = json.loads(resp.content)
+        return result
 
     def _data_cleaning(self, chain, chunk):
         response = chain.invoke({"input": chunk})

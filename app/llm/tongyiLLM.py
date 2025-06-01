@@ -2,12 +2,8 @@ import json
 from http import HTTPStatus
 from typing import List, Optional, Any, Mapping, Union, Generator
 from dashscope.api_entities.dashscope_response import GenerationResponse
-from langchain.schema import (
-    AIMessage,
-    BaseMessage,
-    ChatResult,
-    ChatGeneration,
-)
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain.chat_models.base import BaseChatModel
 from dashscope import Generation, MultiModalConversation
 from pydantic import Field
@@ -15,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from app.core.config import settings
 from app.core.exceptions import BizException
 from app.services.llm_registry import register_llm
+from app.utils.clean_llm_output import extract_response_content
 
 
 @register_llm("tongyi")
@@ -75,7 +72,7 @@ class TongyiAILLM(BaseChatModel):
                 response = Generation.call(**payload)
                 if response.status_code != HTTPStatus.OK:
                     raise BizException(code=response.status_code, message=response.message)
-                content = response.output.text
+                content = extract_response_content(response)
 
             generation = ChatGeneration(message=AIMessage(content=content),
                                         generation_info={"model": self.model_name})

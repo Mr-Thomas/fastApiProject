@@ -1,7 +1,8 @@
 import inspect
+import json
 from typing import Type, Any, Union, ForwardRef
 from pydantic import BaseModel
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, BasePromptTemplate
 from langchain_core.output_parsers import BaseOutputParser
 from collections import abc
 
@@ -9,7 +10,39 @@ from collections import abc
 class LegalDocumentExtractor:
     """法律文书结构化信息提取器"""
 
-    def build_enhanced_prompt(self, model_cls: Type[BaseModel], parser: BaseOutputParser) -> PromptTemplate:
+    def build_prompt(self, model_cls: Type[BaseModel],
+                     description: str = "法律裁判文书结构化数据规范") -> BasePromptTemplate:
+        # 1. 生成模型的结构描述（用于 prompt）
+        schema_dict = model_cls.model_json_schema()
+        schema_dict.setdefault("description", description)
+        schema_json = json.dumps(schema_dict, indent=2, ensure_ascii=False)
+
+        return ChatPromptTemplate.from_messages([
+            ("system", """
+                        你是一个专业的信息提取助手。请根据用户提供的文本，提取结构化信息并返回一个符合如下 JSON Schema 的 JSON 对象：\n
+                        JSON Schema:\n
+                        {schema_json}
+                       """
+             ),
+            ("human", "文本内容:\n{input}")
+        ]).partial(
+            schema_json=schema_json
+        )
+
+        # return PromptTemplate(
+        #     template="""请从以下文本中提取结构化信息，并返回一个符合如下 JSON Schema 的 JSON 对象：\n
+        #     JSON Schema:
+        #     {schema_json} \n
+        #     待提取文本：
+        #     {input}
+        #     """,
+        #     input_variables=["input"],
+        #     partial_variables={
+        #         "schema_json": schema_json
+        #     }
+        # )
+
+    def build_enhanced_prompt(self, model_cls: Type[BaseModel], parser: BaseOutputParser) -> BasePromptTemplate:
         """
         构建包含完整约束说明的提示模板
         确保所有字段（包括多级嵌套）都显示正确的类型约束

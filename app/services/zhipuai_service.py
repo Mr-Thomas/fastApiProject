@@ -1,5 +1,4 @@
 from langchain_core.messages import HumanMessage
-
 from app.core.exceptions import BizException
 from app.services.llm_interface import LLMInterface
 from app.llm.zhipuLLM import ZhipuAILLM

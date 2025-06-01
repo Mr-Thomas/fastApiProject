@@ -1,7 +1,53 @@
 import json
 import re
+from typing import Any
 from markdown2 import markdown as md_to_html  # 引入 markdown 转 HTML 库  pip install markdown2
 import html
+
+from app.core.exceptions import BizException
+
+
+def extract_response_content(response: Any) -> str:
+    """
+    自动判断响应类型（自然语言 or 函数调用），并提取内容。
+
+    返回:
+        - 如果是普通文本，则返回 content 或 text。
+        - 如果是函数调用，则返回 function_call.arguments。
+    """
+    try:
+        output = getattr(response, "output", None)
+        if not output:
+            raise BizException(code=500, message="LLM response missing 'output' field.")
+
+        # 优先判断是否为结构化 choices 响应（Function Call or Chat Response）
+        choices = getattr(output, "choices", None)
+        if choices and isinstance(choices, list) and len(choices) > 0:
+            message = getattr(choices[0], "message", None)
+            if not message:
+                raise BizException(code=500, message="LLM response missing 'message' in choices.")
+
+            # --- 如果是函数调用响应 ---
+            if isinstance(message, dict):
+                function_call = message.get("function_call")
+            else:
+                function_call = getattr(message, "function_call", None)
+            if function_call:
+                if isinstance(function_call, dict):
+                    return function_call.get("arguments", "")
+                elif hasattr(function_call, "arguments"):
+                    return getattr(function_call, "arguments", "")
+                else:
+                    raise BizException(code=500, message="Malformed function_call, missing 'arguments'.")
+
+            # --- 如果是自然语言响应 ---
+            return getattr(message, "content", "")
+
+        # --- 如果是普通 output.text 结构 ---
+        return getattr(output, "text", "")
+
+    except Exception as e:
+        raise BizException(code=500, message=f"Failed to parse LLM response: {str(e)}")
 
 
 def blocks_to_markdown_html(blocks):
