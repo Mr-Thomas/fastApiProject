@@ -36,7 +36,7 @@ class PartyInfo(BaseModel):
     date_of_birth: Optional[str] = Field(None, description="出生日期")
     ethnic_group: Optional[str] = Field(None, description="民族（如汉族）")
     address: Optional[str] = Field(None, description="住址")
-    law_firm_name: Optional[str] = Field(None, description="诉讼代理人、诉讼代理律师所属律所名称")
+    law_firm_name: Optional[str] = Field(None, description="诉讼代理人所属律所名称")
     law_firm_address: Optional[str] = Field(None, description="律所地址")
 
     @field_validator("law_firm_name", mode="before")
@@ -103,7 +103,7 @@ class JudgementInfo(BaseModel):
     facts: List[str] = Field(default_factory=list, description="法院查明的事实")
     findings: List[str] = Field(default_factory=list, description="法院认定意见或结论")
     legal_basis: List[str] = Field(default_factory=list, description="法律依据（法律条文）")
-    judgment_result: List[str] = Field(default_factory=list, description="判决结果")
+    judgment_result: List[str] = Field(default_factory=list, description="判决结果（判决）")
     other_info: List[str] = Field(default_factory=list, description="程序性信息（上诉权利）")
 
     @field_validator("court_name", "court_code", "cause_of_action", "filing_date", "trial_procedure",

@@ -19,10 +19,10 @@ class LegalDocumentExtractor:
 
         return ChatPromptTemplate.from_messages([
             ("system", """
-                        你是一个专业的信息提取助手。请根据用户提供的文本，提取结构化信息并返回一个符合如下 JSON Schema 的 JSON 对象：\n
-                        JSON Schema:\n
-                        {schema_json}
-                       """
+你是一个专业的信息提取助手。请根据用户提供的文本，提取结构化信息并返回一个符合如下 JSON Schema 的 JSON 对象：\n
+JSON Schema:\n
+    {schema_json}
+            """
              ),
             ("human", "文本内容:\n{input}")
         ]).partial(
