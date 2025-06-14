@@ -1,10 +1,9 @@
 import json
 from typing import List, Optional, Any, Mapping, Iterator
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
-from langchain_core.outputs import ChatGeneration, ChatResult, ChatGenerationChunk
+from langchain_core.outputs import ChatResult, ChatGenerationChunk
 from langchain.chat_models.base import BaseChatModel
 from langchain_core.messages import HumanMessage
-from langchain_core.outputs import GenerationChunk
 from langchain_ollama import ChatOllama
 from pydantic import Field
 from fastapi.responses import StreamingResponse
