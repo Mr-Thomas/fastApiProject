@@ -2,11 +2,15 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import Field, PrivateAttr
 from typing import Optional, List, Any, Mapping
 from zhipuai import ZhipuAI
+import json
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from zhipuai.types.chat.chat_completion_chunk import ChatCompletionChunk
+
 from app.core.config import settings
 from app.core.exceptions import BizException
 from app.services.llm_registry import register_llm
+from fastapi.responses import StreamingResponse
 
 
 @register_llm("zhipuai")
@@ -21,7 +25,7 @@ class ZhipuAILLM(BaseChatModel):
                  temperature: Optional[float] = None,
                  **kwargs: Any, ):
         super().__init__(**kwargs)
-        self.model_name = model_name or "glm-4-plus"
+        self.model_name = model_name or "glm-4.1v-thinking-flash"
         self.temperature = temperature or 0.75
         if client:
             self._client = client
@@ -46,6 +50,7 @@ class ZhipuAILLM(BaseChatModel):
             if stop:
                 payload["stop"] = stop
 
+            # 调用 ZhipuAI API
             response = self._client.chat.completions.create(**payload)
 
             if not response or not response.choices:
@@ -57,6 +62,48 @@ class ZhipuAILLM(BaseChatModel):
             return ChatResult(
                 generations=[
                     ChatGeneration(message=AIMessage(content=content), generation_info={"model": self.model_name})]
+            )
+        except Exception as e:
+            raise BizException(message=f"ZhipuAI 生成失败: {str(e)}") from e
+
+    def stream_generate(
+            self,
+            messages: List[BaseMessage],
+            stop: Optional[List[str]] = None,
+            **kwargs: Any,
+    ) -> StreamingResponse:
+        try:
+            payload = {
+                "model": self.model_name,
+                "messages": self._convert_messages(messages),
+                "temperature": self.temperature,
+            }
+            if stop:
+                payload["stop"] = stop
+
+            # 调用 ZhipuAI API
+            response = self._client.chat.completions.create(**payload, stream=kwargs["stream"])
+
+            def stream_chunks():
+                try:
+                    for chunk in response:
+                        delta = chunk.choices[0].delta
+                        content = delta.content
+                        # 跳过空 content
+                        if not content:
+                            continue
+                        yield f"data:{json.dumps({'text': content}, ensure_ascii=False)}\n\n"
+                    yield "data:[DONE]\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+            return StreamingResponse(
+                content=stream_chunks(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "X-Stream-Type": "text-event-stream"
+                }
             )
         except Exception as e:
             raise BizException(message=f"ZhipuAI 生成失败: {str(e)}") from e
