@@ -50,6 +50,7 @@ class HTML2Excel:
 
         # 保存到Excel pip install openpyxl
         df.to_excel(self.output_excel_path, index=False, engine='openpyxl')
+        print(f"成功: 表格已保存到 {self.output_excel_path}")
 
 
 class PDFDataClean:
@@ -143,5 +144,5 @@ if __name__ == '__main__':
     # 调用方法提取并清理表格
     # pdf_cleaner.extract_tables_with_camelot()
 
-    html2Excel = HTML2Excel("../documents/数据项列表-案由-06-12.html", "../documents/html_output_tables.xlsx")
+    html2Excel = HTML2Excel("../documents/数据项列表-案由-06-24.html", "../documents/output_tables_0624.xlsx")
     html2Excel.extract_tables_with_soup()
