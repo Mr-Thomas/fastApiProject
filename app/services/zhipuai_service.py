@@ -4,8 +4,10 @@ from fastapi.responses import StreamingResponse
 from typing import Union
 from app.services.llm_interface import LLMInterface
 from app.llm.zhipuLLM import ZhipuAILLM
+from app.services.llm_service_factory import LLMServiceFactory
 
 
+@LLMServiceFactory.auto_register("zhipuai")  # noqa: F821
 class ZhipuAiService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> Union[str, StreamingResponse]:

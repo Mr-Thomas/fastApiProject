@@ -5,8 +5,10 @@ from app.core.exceptions import BizException
 from app.core.logger import logger
 from app.services.llm_interface import LLMInterface
 from app.llm.ollamaChatLLM import OllamaChatLLM
+from app.services.llm_service_factory import LLMServiceFactory
 
 
+@LLMServiceFactory.auto_register("ollama")
 class OllamaService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> Union[str, StreamingResponse]:

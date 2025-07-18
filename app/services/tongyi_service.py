@@ -5,8 +5,10 @@ from app.core.exceptions import BizException
 from app.core.logger import logger
 from app.services.llm_interface import LLMInterface
 from app.llm.tongyiLLM import TongyiAILLM
+from app.services.llm_service_factory import LLMServiceFactory
 
 
+@LLMServiceFactory.auto_register("tongyi")  # noqa: F821
 class TongyiAiService(LLMInterface):
 
     def generate(self, prompt: str, model_name: str, **kwargs) -> Union[str, StreamingResponse]:

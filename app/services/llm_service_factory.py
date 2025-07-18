@@ -15,6 +15,24 @@ class LLMServiceFactory:
         :param service_class: 服务类
         """
         cls._services[service_name] = service_class
+        print(f"Registered service: {service_name} -> {service_class.__name__}")    
+
+    @classmethod
+    def auto_register(cls, service_name: str):
+        """
+        类方法的第一个参数是 cls,代表类对象本身(即这个类)
+
+        装饰器：用于自动注册服务类。
+        用法：@LLMServiceFactory.auto_register("service_name")
+        """
+        def decorator(service_class: Type[LLMInterface]):
+            """ 
+            装饰器函数，用于注册服务类。
+            service_class 是被装饰的类对象，由 Python 装饰器机制自动传入
+            """
+            cls.register(service_name, service_class)
+            return service_class
+        return decorator
 
     @classmethod
     def create_service(cls, service_name: str, **kwargs) -> LLMInterface:

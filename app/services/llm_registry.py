@@ -12,6 +12,7 @@ def register_llm(name: str):
 
     def decorator(cls: Type[BaseChatModel]):
         _llm_registry[name.lower()] = cls
+        print(f"Registered service: {name} -> {cls.__name__}")
         return cls
 
     return decorator
