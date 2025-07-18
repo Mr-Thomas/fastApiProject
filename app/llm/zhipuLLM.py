@@ -5,7 +5,6 @@ from zhipuai import ZhipuAI
 import json
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from zhipuai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from app.core.config import settings
 from app.core.exceptions import BizException

@@ -15,7 +15,7 @@ from rapidocr_onnxruntime import RapidOCR
 from docx import Document
 from app.core.config import settings
 from app.core.exceptions import BizException
-from app.schemas.llm_schemas import JudgementInfo, Person
+from app.schemas.llm_schemas import JudgementInfo
 from app.services.llm_registry import get_llm
 from app.splitters.keyword_extractor import KeywordExtractor
 from app.utils.clean_llm_output import extract_json_block, blocks_to_markdown_html
