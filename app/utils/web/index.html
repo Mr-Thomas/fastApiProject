@@ -1,0 +1,230 @@
+
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>电子卷宗目录</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: sans-serif;
+                background: #121a2e;
+                color: #e6e8ee;
+            }
+    
+            .app {
+                display: grid;
+                grid-template-columns: 360px 1fr;
+                height: 100vh;
+            }
+    
+            .sidebar {
+                border-right: 1px solid #1f2a44;
+                background: #0e1628;
+                display: flex;
+                flex-direction: column;
+            }
+    
+            .header {
+                padding: 14px 16px;
+                border-bottom: 1px solid #1f2a44;
+            }
+    
+            .title {
+                font-size: 16px;
+                font-weight: 700;
+            }
+    
+            .tree-wrap {
+                overflow: auto;
+                flex: 1;
+                padding: 8px;
+            }
+    
+            .tree {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+    
+            .tree li .row {
+                display: flex;
+                align-items: center;
+                padding: 4px 8px;
+                cursor: pointer;
+            }
+    
+            .tree li .row:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+    
+            .name a {
+                color: #e6e8ee;
+                text-decoration: none;
+            }
+    
+            .name a:hover {
+                color: #4ea1ff;
+                text-decoration: underline;
+            }
+    
+            .children {
+                list-style: none;
+                margin: 0 0 0 16px;
+                padding: 0;
+                display: none;
+            }
+    
+            .dir.open>.children {
+                display: block;
+            }
+    
+            .twisty {
+                width: 12px;
+                display: inline-block;
+                transition: transform 0.2s;
+            }
+    
+            .dir.open>.row .twisty {
+                transform: rotate(90deg);
+            }
+    
+            .main {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+    
+            .preview-head {
+                padding: 10px 12px;
+                border-bottom: 1px solid #1f2a44;
+                flex: 0 0 auto;
+            }
+    
+            #current {
+                color: #9aa3b2;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+    
+            .preview {
+                flex: 1 1 auto;
+                min-height: 0;
+            }
+    
+            #viewer {
+                width: 100%;
+                height: 100%;
+                border: 0;
+                background: #111;
+            }
+    
+            .highlight {
+                background: rgba(78, 161, 255, 0.25);
+                border-radius: 4px;
+            }
+        </style>
+    </head>
+    
+    <body>
+        <div class="app">
+            <aside class="sidebar">
+                <div class="header">
+                    <div class="title">电子卷宗目录</div>
+                </div>
+                <div class="tree-wrap">
+                    <ul class='tree root'></ul>
+                </div>
+            </aside>
+            <main class="main">
+                <div class="preview-head">
+                    <div id="current">未选择文件</div>
+                </div>
+                <div class="preview"><iframe id="viewer" title="PDF 预览"></iframe></div>
+            </main>
+        </div>
+        <script>
+            const treeRoot = document.querySelector('.tree.root');
+            const viewer = document.getElementById('viewer');
+            const current = document.getElementById('current');
+    
+            // 获取 URL 参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const caseParam = urlParams.get('case'); // 例：(2026) 鲁民初4号
+    
+            // 加载目录
+            fetch('catalog.json').then(res => res.json()).then(data => {
+                treeRoot.innerHTML = '';
+    
+                if (caseParam && data[caseParam]) {
+                    // 只显示指定案件
+                    renderCase(caseParam, data[caseParam]);
+                } else {
+                    // 如果没传参数，就显示全部
+                    Object.keys(data).forEach(caseName => {
+                        renderCase(caseName, data[caseName]);
+                    });
+                }
+            });
+    
+            function renderCase(caseName, caseData) {
+                const caseLi = document.createElement('li');
+                caseLi.className = 'dir open';
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.innerHTML = '<span class="twisty">▶</span><span class="name">' + caseName + '</span>';
+                const ul = document.createElement('ul');
+                ul.className = 'children';
+                caseLi.appendChild(row);
+                caseLi.appendChild(ul);
+                buildTree(caseData, ul);
+                treeRoot.appendChild(caseLi);
+    
+                // 如果是指定案件，展开第一个文件
+                if (caseParam && caseName === caseParam) {
+                    const firstFileLink = ul.querySelector('a.file-link');
+                    if (firstFileLink) {
+                        firstFileLink.click();
+                    }
+                }
+    
+                // 点击案件标题展开/收起
+                row.addEventListener('click', () => {
+                    caseLi.classList.toggle('open');
+                });
+            }
+    
+            // 递归构建树
+            function buildTree(items, parent) {
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = item.type;
+                    const row = document.createElement('div');
+                    row.className = 'row';
+                    if (item.type === 'dir') {
+                        row.innerHTML = '<span class="twisty">▶</span><span class="name">' + item.name + '</span>';
+                        const ul = document.createElement('ul');
+                        ul.className = 'children';
+                        li.appendChild(row);
+                        li.appendChild(ul);
+                        buildTree(item.children, ul);
+                        row.addEventListener('click', () => { li.classList.toggle('open'); });
+                    } else {
+                        row.innerHTML = '<span class="name"><a href="#" class="file-link">' + item.name + '</a></span>';
+                        row.querySelector('a').addEventListener('click', e => {
+                            e.preventDefault();
+                            viewer.src = '/pdfjs/web/viewer.html?file=' + encodeURIComponent(item.url);
+                            current.textContent = item.name;
+                        });
+                        li.appendChild(row);
+                    }
+                    parent.appendChild(li);
+                });
+            }
+        </script>
+    </body>
+    
+    </html>
+    

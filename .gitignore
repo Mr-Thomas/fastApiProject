@@ -10,3 +10,7 @@ test_main.http
 *.ipr
 *.iws
 *.pyc
+__pycache__/
+venv/
+.env.*
+*.log
