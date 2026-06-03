@@ -12,6 +12,7 @@ dashscope==1.23.3
 sentence-transformers
 rapidocr_onnxruntime
 python-multipart
+openai>=1.0.0
 pymupdf
 python-docx
 markdown2

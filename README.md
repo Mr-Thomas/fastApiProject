@@ -2,7 +2,7 @@
 ├── app/                          # 项目核心应用代码目录
 │   ├── api/                      # API 路由和控制器相关代码目录
 │   ├── core/                     # 项目核心配置和工具代码目录
-│   ├── llm/                      # 大语言模型相关代码目录
+│   ├── llm/                      # 大语言模型相关代码目录（Ollama、通义千文、智谱、DeepSeek）
 │   ├── main.py                   # FastAPI 应用入口文件，注册路由和异常处理器
 │   ├── local_models/             # 本地打模型相关
 │   ├── schemas/                  # Pydantic 数据模型定义目录

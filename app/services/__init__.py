@@ -2,3 +2,4 @@
 from .ollama_service import OllamaService  # noqa: F401
 from .tongyi_service import TongyiAiService  # noqa: F401
 from .zhipuai_service import ZhipuAiService  # noqa: F401
+from .deepseek_service import DeepseekService  # noqa: F401

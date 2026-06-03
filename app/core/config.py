@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     zhipuai_api_key: str = Field(default="", validation_alias="ZHIPUAI_API_KEY")
     # 通义千文 API 访问密钥配置
     dashscope_api_key: str = Field(default="", validation_alias="DASHSCOPE_API_KEY")
+    # Deepseek API 访问密钥配置
+    deepseek_api_key: str = Field(default="", validation_alias="DEEPSEEK_API_KEY")
 
     model_config = SettingsConfigDict(
         env_file=f".env.{os.getenv('ENV', 'dev')}",
